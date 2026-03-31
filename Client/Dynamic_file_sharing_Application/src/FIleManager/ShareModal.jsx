@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { getToken } from "../utils/handleAuth";
 
-const BASE_URL = " http://localhost:8080/api/v1/dashboard";
+const BASE_URL = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const STYLES = `
   @keyframes overlayIn { from{opacity:0} to{opacity:1} }

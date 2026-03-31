@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { getUser, getToken, clearAuth } from "../utils/handleAuth";
 import ShareModal from "./ShareModal";
 
-const BASE_URL = " http://localhost:8080/api/v1/file";
-const DASH_BASE = " http://localhost:8080/api/v1/dashboard";
+const BASE_URL = " https://voult-server.onrender.com/api/v1/file";
+const DASH_BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const FM_STYLES = `
   @keyframes fm-fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
