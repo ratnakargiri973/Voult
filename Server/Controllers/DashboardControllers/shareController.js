@@ -1,23 +1,29 @@
-// Controllers/dashboard/shareController.js
 import nodemailer from "nodemailer";
-import mongoose   from "mongoose";
-import { File }   from "../../Models/fileModals/fileSchema.js";
+import mongoose from "mongoose";
+import { File } from "../../Models/fileModals/fileSchema.js";
 import { signInModal } from "../../Models/authModals/SignIn.js";
 import { Activity } from "../../Models/activityModal/activityModal.js";
 
-import { notifyShareSent, notifyShareFailed, notifyShareReceived } from "../../Helpers/Notification.js";
+import {
+  notifyShareSent,
+  notifyShareFailed,
+  notifyShareReceived,
+} from "../../Helpers/Notification.js";
 
 /* ══════════════════════════════════════════════════════════
-   ACTIVITY HELPER — fire-and-forget, never crashes caller
+   ACTIVITY HELPER — fire-and-forget
 ══════════════════════════════════════════════════════════ */
-const logActivity = async ({ userId, type, action, fileName = "", fileId = null, meta = {} }) => {
+const logActivity = async (data) => {
   try {
-    await Activity.create({ userId, type, action, fileName, fileId, meta });
+    await Activity.create(data);
   } catch (err) {
     console.error("logActivity failed:", err.message);
   }
 };
 
+/* ══════════════════════════════════════════════════════════
+   MAIL TRANSPORTER (reuse)
+══════════════════════════════════════════════════════════ */
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -27,22 +33,16 @@ const transporter = nodemailer.createTransport({
 });
 
 /* ══════════════════════════════════════════════════════════
-   POST /api/v1/dashboard/share/:fileId
+   SHARE FILE
 ══════════════════════════════════════════════════════════ */
 export const shareFile = async (req, res) => {
   try {
     const { fileId } = req.params;
     const { emails } = req.body;
-    const senderId   = req.user.id;
+    const senderId = req.user.id;
 
-    // ── Validate emails ──
     if (!emails || !Array.isArray(emails) || emails.length === 0)
-      return res.status(400).json({ message: "Provide at least one email address" });
-
-    const validEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const invalidEmails   = emails.filter(e => !validEmailRegex.test(e));
-    if (invalidEmails.length > 0)
-      return res.status(400).json({ message: "Invalid email addresses", invalid: invalidEmails });
+      return res.status(400).json({ message: "Provide emails" });
 
     if (!mongoose.Types.ObjectId.isValid(fileId))
       return res.status(400).json({ message: "Invalid file ID" });
@@ -50,129 +50,79 @@ export const shareFile = async (req, res) => {
     const file = await File.findById(fileId);
     if (!file) return res.status(404).json({ message: "File not found" });
 
-    // ── Only owner can share ──
     if (file.owner.toString() !== senderId)
-      return res.status(403).json({ message: "Not authorized to share this file" });
+      return res.status(403).json({ message: "Not authorized" });
 
     const sender = await signInModal.findById(senderId, { email: 1 });
 
-    // ── Send emails & track results ──
+    /* 🔥 SEND EMAILS IN PARALLEL */
     const results = await Promise.allSettled(
-      emails.map(async (recipientEmail) => {
-        try {
-          await transporter.sendMail({
-            from:    `"Vault" <${process.env.EMAIL}>`,
-            to:      recipientEmail,
-            subject: `${sender.email} shared a file with you`,
-            html: `
-              <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#0f0f0f;border-radius:12px;color:#e4e8f0;">
-                <div style="margin-bottom:24px;">
-                  <span style="font-size:22px;font-weight:700;color:#00d4aa;">Vault</span>
-                </div>
-                <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;color:#ffffff;">
-                  You received a file
-                </h2>
-                <p style="font-size:14px;color:#aaa;margin-bottom:24px;">
-                  <strong style="color:#e4e8f0;">${sender.email}</strong> shared a file with you via Vault.
-                </p>
-                <div style="background:#1a1e27;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:18px 20px;margin-bottom:24px;">
-                  <div style="font-size:13px;color:#aaa;margin-bottom:4px;">File name</div>
-                  <div style="font-size:15px;font-weight:600;color:#ffffff;">${file.fileName}</div>
-                </div>
-                <a href="${file.fileUrl}" target="_blank"
-                  style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#00d4aa,#00b896);color:#0a0c10;font-weight:700;font-size:14px;border-radius:10px;text-decoration:none;">
-                  Open File →
-                </a>
-                <p style="font-size:12px;color:#555;margin-top:28px;">
-                  This link gives direct access to the file. Do not forward this email if the file is private.
-                </p>
-              </div>
-            `,
-          });
-          return { email: recipientEmail, delivered: true };
-        } catch (mailErr) {
-          return { email: recipientEmail, delivered: false, failReason: mailErr.message };
-        }
-      })
+      emails.map((email) =>
+        transporter.sendMail({
+          from: `"Vault" <${process.env.EMAIL}>`,
+          to: email,
+          subject: `${sender.email} shared a file`,
+          html: `<b>${file.fileName}</b> <br/> <a href="${file.fileUrl}">Open</a>`,
+        })
+      )
     );
 
-    // ── Update file: add sharedWith records ──
-    const shareRecords = results.map(r => ({
-      email:      r.value.email,
-      delivered:  r.value.delivered,
-      failReason: r.value.failReason || "",
-      sharedAt:   new Date(),
+    const delivered = [];
+    const failed = [];
+
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") delivered.push(emails[i]);
+      else failed.push({ email: emails[i], reason: r.reason?.message });
+    });
+
+    /* 🔥 UPDATE DB */
+    file.sharedWith = emails.map((email) => ({
+      email,
+      delivered: delivered.includes(email),
+      failReason:
+        failed.find((f) => f.email === email)?.reason || "",
+      sharedAt: new Date(),
     }));
 
-    for (const rec of shareRecords) {
-      const existing = file.sharedWith.find(s => s.email === rec.email);
-      if (existing) {
-        existing.delivered  = rec.delivered;
-        existing.failReason = rec.failReason;
-        existing.sharedAt   = rec.sharedAt;
-      } else {
-        file.sharedWith.push(rec);
-      }
-    }
-
-    const delivered = shareRecords.filter(r =>  r.delivered).map(r => r.email);
-    const failed    = shareRecords.filter(r => !r.delivered).map(r => ({
-      email:  r.email,
-      reason: r.failReason,
-    }));
-
-    if (delivered.length > 0) {
-      file.isShared = true;
-    }
-
+    file.isShared = delivered.length > 0;
     await file.save();
 
-    // ── Activity + notifications for successful deliveries ──
-    if (delivered.length > 0) {
-      await logActivity({
-        userId:   senderId,
-        type:     "share",
-        action:   `shared ${file.fileName} with ${delivered.length} recipient(s)`,
-        fileName: file.fileName,
-        fileId:   file._id,
-        meta: {
-          deliveredTo: delivered,
-          failedTo:    failed.map(f => f.email),
-          partial:     failed.length > 0 && delivered.length > 0,
-        },
-      });
-      await notifyShareSent(senderId, file.fileName, file._id, delivered);
-
-      for (const email of delivered) {
-        const recipient = await signInModal.findOne({ email }, { _id: 1 });
-        if (recipient) {
-          await notifyShareReceived(recipient._id, sender.email, file.fileName, file._id, file.fileUrl);
-        }
-      }
-    }
-
-    // ── Activity + notifications for failures ──
-    if (failed.length > 0) {
-      await logActivity({
-        userId:   senderId,
-        type:     "share_failed",
-        action:   `failed to share ${file.fileName} with ${failed.length} recipient(s)`,
-        fileName: file.fileName,
-        fileId:   file._id,
-        meta: {
-          failedRecipients: failed,
-        },
-      });
-      await notifyShareFailed(senderId, file.fileName, file._id, failed);
-    }
-
+    /* ✅ RESPOND FAST */
     res.json({
-      success:   true,
-      message:   `Shared with ${delivered.length} recipient(s)`,
+      success: true,
       delivered,
       failed,
-      partial:   failed.length > 0 && delivered.length > 0,
-      allFailed: delivered.length === 0,
+    });
+
+    /* 🔥 BACKGROUND TASKS */
+
+    // Activity logs
+    logActivity({
+      userId: senderId,
+      type: "share",
+      action: `shared ${file.fileName}`,
+      fileName: file.fileName,
+      fileId: file._id,
+    });
+
+    // Notifications (non-blocking)
+    notifyShareSent(senderId, file.fileName, file._id, delivered).catch(console.error);
+    notifyShareFailed(senderId, file.fileName, file._id, failed).catch(console.error);
+
+    // 🔥 PARALLEL recipient lookup
+    const recipients = await signInModal.find(
+      { email: { $in: delivered } },
+      { _id: 1, email: 1 }
+    );
+
+    recipients.forEach((user) => {
+      notifyShareReceived(
+        user._id,
+        sender.email,
+        file.fileName,
+        file._id,
+        file.fileUrl
+      ).catch(console.error);
     });
 
   } catch (err) {
@@ -182,83 +132,67 @@ export const shareFile = async (req, res) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   GET /api/v1/dashboard/share/:fileId/history
+   SHARE HISTORY
 ══════════════════════════════════════════════════════════ */
 export const getShareHistory = async (req, res) => {
   try {
     const { fileId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(fileId))
-      return res.status(400).json({ message: "Invalid file ID" });
-
-    const file = await File.findById(fileId, { sharedWith: 1, fileName: 1 });
-    if (!file) return res.status(404).json({ message: "File not found" });
-
-    await logActivity({
-      userId:   req.user.id,
-      type:     "view",
-      action:   `viewed share history for ${file.fileName}`,
-      fileName: file.fileName,
-      fileId:   file._id,
-    });
+    const file = await File.findById(fileId);
+    if (!file) return res.status(404).json({ message: "Not found" });
 
     res.json({
-      success:    true,
-      fileName:   file.fileName,
-      sharedWith: file.sharedWith.sort((a, b) => new Date(b.sharedAt) - new Date(a.sharedAt)),
+      success: true,
+      sharedWith: file.sharedWith,
     });
+
+    // background log
+    logActivity({
+      userId: req.user.id,
+      type: "view",
+      action: "viewed share history",
+      fileName: file.fileName,
+      fileId: file._id,
+    });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 /* ══════════════════════════════════════════════════════════
-   PATCH /api/v1/dashboard/share/:fileId/revoke
+   REVOKE SHARE
 ══════════════════════════════════════════════════════════ */
 export const revokeShare = async (req, res) => {
   try {
     const { fileId } = req.params;
-    const { email }  = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(fileId))
-      return res.status(400).json({ message: "Invalid file ID" });
+    const { email } = req.body;
 
     const file = await File.findById(fileId);
-    if (!file) return res.status(404).json({ message: "File not found" });
+    if (!file) return res.status(404).json({ message: "Not found" });
 
     if (file.owner.toString() !== req.user.id)
-      return res.status(403).json({ message: "Not authorized" });
+      return res.status(403).json({ message: "Not allowed" });
 
-    if (email) {
-      file.sharedWith = file.sharedWith.filter(s => s.email !== email);
-    } else {
-      file.sharedWith = [];
-    }
+    file.sharedWith = email
+      ? file.sharedWith.filter((s) => s.email !== email)
+      : [];
 
-    if (file.sharedWith.length === 0) {
-      file.isShared = false;
-    }
-
+    file.isShared = file.sharedWith.length > 0;
     await file.save();
 
-    await logActivity({
-      userId:   req.user.id,
-      type:     "unshare",
-      action:   email
-        ? `revoked access to ${file.fileName} for ${email}`
-        : `revoked all access to ${file.fileName}`,
+    res.json({ success: true });
+
+    // background log
+    logActivity({
+      userId: req.user.id,
+      type: "unshare",
+      action: "revoked access",
       fileName: file.fileName,
-      fileId:   file._id,
-      meta:     { revokedEmail: email || "all" },
+      fileId: file._id,
     });
 
-    res.json({
-      success:  true,
-      message:  email ? `Access revoked for ${email}` : "All access revoked",
-      isShared: file.isShared,
-    });
   } catch (err) {
-    console.error("revokeShare:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
