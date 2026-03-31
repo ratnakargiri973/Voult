@@ -9,7 +9,7 @@ import { StarredPage } from "./StarredPage";
 import EditProfile from "./EditProfile";
 import NotificationPanel from "./NotificationPanel";
 
-const BASE = "http://localhost:8080/api/v1/dashboard";
+const BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,900;1,600&family=Outfit:wght@300;400;500;600&display=swap');

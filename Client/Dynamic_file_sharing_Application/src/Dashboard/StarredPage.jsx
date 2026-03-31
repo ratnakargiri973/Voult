@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { clearAuth } from "../utils/handleAuth";
 
-const DASH_BASE = "http://localhost:8080/api/v1/dashboard";
+const DASH_BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const FILE_ICONS = {
   pdf:  { e:"📄", bg:"rgba(255,90,90,0.11)",   bd:"rgba(255,90,90,0.18)" },

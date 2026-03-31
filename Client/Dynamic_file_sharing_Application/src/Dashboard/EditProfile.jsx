@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-const BASE = "http://localhost:8080/api/v1/dashboard";
+const BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const MODAL_STYLES = `
   .ep-overlay {

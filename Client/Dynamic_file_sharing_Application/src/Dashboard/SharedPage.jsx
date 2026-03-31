@@ -7,8 +7,8 @@ import axios from "axios";
 import React, { useState, useEffect, useCallback } from "react";
 import { getToken } from "../utils/handleAuth";
 
-const FILE_BASE = "http://localhost:8080/api/v1/file";
-const DASH_BASE = "http://localhost:8080/api/v1/dashboard";
+const FILE_BASE = " https://voult-server.onrender.com/api/v1/file";
+const DASH_BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 /* ── helpers ── */
 const fmtDate = (d) =>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"; // ✅ useRef imported
 import axios from "axios";
 
-const BASE = "http://localhost:8080/api/v1/dashboard";
+const BASE = " https://voult-server.onrender.com/api/v1/dashboard";
 
 const FILE_ICONS = {
     pdf: { e: "📄", bg: "rgba(255,90,90,0.11)", bd: "rgba(255,90,90,0.18)" },

@@ -14,8 +14,15 @@ const MONGO_URI = process.env.MONGO_URI;
 const DB = process.env.DB;
 
 const app = express();
-app.use(cors({origin:"*"}));
-app.use(express.urlencoded({extended:true}));
+const corsOption = {
+    origin: "https://file-voult.onrender.com",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+}
+
+app.use(cors(corsOption));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.use('/api/v1/auth', authRouter);
@@ -24,12 +31,12 @@ app.use('/api/v1/file', fileRouter);
 app.use('/api/v1/notifications', notificationRouter);
 
 mongoose
-.connect(MONGO_URI, {dbName:DB})
-.then(()=>{
-    app.listen(PORT, ()=>{
-        console.log(`Server is running on the port ${PORT}`);
+    .connect(MONGO_URI, { dbName: DB })
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server is running on the port ${PORT}`);
+        })
     })
-})
-.catch((err)=>{
+    .catch((err) => {
         console.error('Failed to connect to mongodb', err);
-});
+    });

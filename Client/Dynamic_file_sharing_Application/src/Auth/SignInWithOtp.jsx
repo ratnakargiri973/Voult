@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { saveAuth } from "../utils/handleAuth";
 
 const OTP_LENGTH = 6;
-const BASE_URL = "http://localhost:8080/api/v1/auth";
+const BASE_URL = " https://voult-server.onrender.com/api/v1/auth";
 
 export default function SignInWithOTP() {
   const [step, setStep] = useState("email");
