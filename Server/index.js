@@ -6,6 +6,7 @@ import authRouter from './Routes/authRouter.js';
 import fileRouter from './Routes/fileRoutes.js';
 import dashboardRouter from "./Routes/dashboardRouter.js";
 import notificationRouter from './Routes/notificationRouter.js';
+import cookieParser from 'cookie-parser';
 
 dotenv.config();
 
@@ -22,6 +23,8 @@ const corsOption = {
 }
 
 app.use(cors(corsOption));
+app.options('*', cors(corsOption));
+app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
