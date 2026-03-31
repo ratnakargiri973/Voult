@@ -1,8 +1,8 @@
 import otpGenerator from 'otp-generator'
-import { otpModal }    from '../../Models/authModals/Otp.js';
+import { otpModal } from '../../Models/authModals/Otp.js';
 import { signInModal } from '../../Models/authModals/SignIn.js';
-import { Activity }    from '../../Models/activityModal/activityModal.js';
-import nodemailer      from 'nodemailer'
+import { Activity } from '../../Models/activityModal/activityModal.js';
+import nodemailer from 'nodemailer'
 import { generateToken } from '../../Utils/generateWebToken.js';
 
 /* ══════════════════════════════════════════════════════════
@@ -28,14 +28,16 @@ export const sendOtp = async (req, res) => {
     const otp = otpGenerator.generate(6, {
       upperCaseAlphabets: false,
       lowerCaseAlphabets: false,
-      specialChars:       false,
+      specialChars: false,
     });
 
     await otpModal.deleteMany({ email });
     await otpModal.create({ email, otp });
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      service: "smtp.gmail.com",
+      port: 465,
+      secure: true,
       auth: {
         user: process.env.EMAIL,
         pass: process.env.PASS,
@@ -43,8 +45,8 @@ export const sendOtp = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from:    `"Vault" <${process.env.EMAIL}>`,
-      to:      email,
+      from: `"Vault" <${process.env.EMAIL}>`,
+      to: email,
       subject: "Your One-Time Passcode",
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0f0f0f;border-radius:12px;color:#e4e8f0;">
@@ -72,9 +74,9 @@ export const sendOtp = async (req, res) => {
     if (existingUser) {
       await logActivity({
         userId: existingUser._id,
-        type:   "otp_sent",
+        type: "otp_sent",
         action: "requested a new OTP",
-        meta:   { email, ip: req.ip },
+        meta: { email, ip: req.ip },
       });
     }
 
@@ -119,11 +121,11 @@ export const verifyOtp = async (req, res) => {
     // ── Activity log ──
     await logActivity({
       userId: user._id,
-      type:   isNewUser ? "register" : "login",
+      type: isNewUser ? "register" : "login",
       action: isNewUser ? "created an account" : "signed in",
-      meta:   {
+      meta: {
         email,
-        ip:        req.ip,
+        ip: req.ip,
         userAgent: req.headers["user-agent"] || "",
         isNewUser,
       },
@@ -134,8 +136,8 @@ export const verifyOtp = async (req, res) => {
       message: "Login successful",
       token,
       user: {
-        id:         user._id,
-        email:      user.email,
+        id: user._id,
+        email: user.email,
         isVerified: user.isVerified,
       },
     });
@@ -154,10 +156,10 @@ export const logout = async (req, res) => {
     // req.user is set by your verifyToken middleware
     await logActivity({
       userId: req.user.id,
-      type:   "logout",
+      type: "logout",
       action: "signed out",
-      meta:   {
-        ip:        req.ip,
+      meta: {
+        ip: req.ip,
         userAgent: req.headers["user-agent"] || "",
       },
     });

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 
-const BASE = " https://voult-server.onrender.com/api/v1/notifications";
+const BASE = " http://localhost:8080/api/v1/notifications";
 
 const NOTIF_STYLES = `
   @keyframes np-fadeIn  { from{opacity:0} to{opacity:1} }
