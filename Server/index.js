@@ -16,15 +16,15 @@ const DB = process.env.DB;
 
 const app = express();
 const corsOption = {
-    origin: "https://file-voult.onrender.com",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-}
+  origin: [
+    "http://localhost:5173",
+    "https://file-voult.onrender.com"
+  ],
+  credentials: true,
+};
 
-app.use(cors(corsOption));
-app.options('*', cors(corsOption));
-app.use(cookieParser());
+app.use(cors(corsOption)); // ✅ enough
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
